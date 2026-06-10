@@ -9,6 +9,8 @@ export type User = {
   nickname: string;
   normalizedNickname: string;
   passwordHash: string;
+  profileImageUrl?: string;
+  notificationEnabled?: boolean;
   createdAt: string;
 };
 
@@ -60,6 +62,11 @@ export async function findUserByNickname(nickname: string) {
   return usersFile.users.find((user) => user.normalizedNickname === normalizedNickname) ?? null;
 }
 
+export async function findUserById(id: string) {
+  const usersFile = await readUsersFile();
+  return usersFile.users.find((user) => user.id === id) ?? null;
+}
+
 export async function isNicknameTaken(nickname: string) {
   return (await findUserByNickname(nickname)) !== null;
 }
@@ -86,5 +93,67 @@ export async function createUser(input: { nickname: string; passwordHash: string
     await writeUsersFile(usersFile);
 
     return user;
+  });
+}
+
+export async function updateUser(
+  userId: string,
+  input: {
+    nickname?: string;
+    profileImageUrl?: string | null;
+    notificationEnabled?: boolean;
+  }
+) {
+  return enqueueWrite(async () => {
+    const usersFile = await readUsersFile();
+    const user = usersFile.users.find((candidate) => candidate.id === userId);
+
+    if (!user) {
+      return { status: "not-found" as const };
+    }
+
+    if (input.nickname !== undefined) {
+      const nickname = input.nickname.trim();
+      const normalizedNickname = normalizeNickname(nickname);
+      const duplicate = usersFile.users.some(
+        (candidate) => candidate.id !== userId && candidate.normalizedNickname === normalizedNickname
+      );
+
+      if (duplicate) {
+        return { status: "duplicate-nickname" as const };
+      }
+
+      user.nickname = nickname;
+      user.normalizedNickname = normalizedNickname;
+    }
+
+    if (input.profileImageUrl !== undefined) {
+      if (input.profileImageUrl === null) {
+        delete user.profileImageUrl;
+      } else {
+        user.profileImageUrl = input.profileImageUrl;
+      }
+    }
+
+    if (input.notificationEnabled !== undefined) {
+      user.notificationEnabled = input.notificationEnabled;
+    }
+
+    await writeUsersFile(usersFile);
+    return { status: "updated" as const, user };
+  });
+}
+
+export async function deleteUser(userId: string) {
+  return enqueueWrite(async () => {
+    const usersFile = await readUsersFile();
+    const nextUsers = usersFile.users.filter((user) => user.id !== userId);
+
+    if (nextUsers.length === usersFile.users.length) {
+      return false;
+    }
+
+    await writeUsersFile({ users: nextUsers });
+    return true;
   });
 }

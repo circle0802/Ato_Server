@@ -23,3 +23,23 @@ export function createAuthToken(payload: Omit<AuthTokenPayload, "iat">) {
 
   return `${encodedBody}.${signature}`;
 }
+
+export function verifyAuthToken(token: string) {
+  const [encodedBody, signature] = token.split(".");
+
+  if (!encodedBody || !signature) {
+    return null;
+  }
+
+  const expectedSignature = createHmac("sha256", env.tokenSecret).update(encodedBody).digest("base64url");
+
+  if (signature !== expectedSignature) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(Buffer.from(encodedBody, "base64url").toString("utf8")) as AuthTokenPayload;
+  } catch {
+    return null;
+  }
+}
