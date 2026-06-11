@@ -23,18 +23,21 @@ export type GiftInput = {
   age: number;
   gender: string;
   relation: string;
+  occasion?: string;
   hobbies: string[];
   interests: string[];
   budgetMin?: number;
   budgetMax: number;
   mood?: string;
   categories: string[];
+  extraContext?: string;
 };
 
 export type GiftRecommendationItem = {
   id: string;
   name: string;
   category: string;
+  imageUrl: string;
   reason: string;
   price: number;
   ranking: number;

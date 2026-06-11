@@ -49,6 +49,43 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
     return;
   }
 
+  if (err instanceof Error && err.message === "NAVER_SHOPPING_API_KEYS are not set") {
+    res.status(500).json({
+      error: "Server is missing NAVER_CLIENT_ID or NAVER_CLIENT_SECRET",
+    });
+    return;
+  }
+
+  if (err instanceof Error && err.message === "No matching shopping products found") {
+    res.status(502).json({
+      error: "No matching shopping products found",
+    });
+    return;
+  }
+
+  if (err instanceof Error && err.message === "Gift idea generation failed") {
+    res.status(502).json({
+      error: "Gift idea generation failed",
+    });
+    return;
+  }
+
+  if (err instanceof Error && err.message === "NAVER_SHOPPING_API_FAILED") {
+    const naverError = err as Error & {
+      naverStatus?: number;
+      naverErrorCode?: string;
+      naverErrorMessage?: string;
+    };
+
+    res.status(502).json({
+      error: "Naver Shopping API request failed",
+      naverStatus: naverError.naverStatus,
+      naverErrorCode: naverError.naverErrorCode,
+      naverErrorMessage: naverError.naverErrorMessage,
+    });
+    return;
+  }
+
   console.error(err);
   res.status(500).json({
     error: "Internal server error",
