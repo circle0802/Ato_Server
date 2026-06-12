@@ -7,13 +7,6 @@ import type { AuthenticatedRequest } from "../middleware/auth.js";
 
 const router = Router();
 
-const nicknameSchema = z
-  .string()
-  .trim()
-  .min(2, "Nickname must be at least 2 characters")
-  .max(20, "Nickname must be at most 20 characters")
-  .regex(/^[가-힣a-zA-Z0-9_]+$/, "Nickname can only contain Korean, English, numbers, and underscore");
-
 function toUserResponse(user: NonNullable<Awaited<ReturnType<typeof findUserById>>>) {
   return {
     id: user.id,
@@ -40,30 +33,41 @@ router.get("/", async (req, res, next) => {
   }
 });
 
-router.patch("/", async (req, res, next) => {
+router.patch("/profile-image", async (req, res, next) => {
   try {
     const authReq = req as unknown as AuthenticatedRequest;
-    const input = z
-      .object({
-        nickname: nicknameSchema.optional(),
-        profileImageUrl: z.string().url().nullable().optional(),
-        notificationEnabled: z.boolean().optional(),
-      })
-      .parse(req.body);
-    const result = await updateUser(authReq.auth.userId, input);
+    const { profileImageUrl } = z.object({ profileImageUrl: z.string().url().nullable() }).parse(req.body);
+    const result = await updateUser(authReq.auth.userId, { profileImageUrl });
 
     if (result.status === "not-found") {
       res.status(404).json({ error: "User not found" });
       return;
     }
 
-    if (result.status === "duplicate-nickname") {
-      res.status(409).json({ error: "Nickname is already taken" });
+    if (result.status !== "updated") {
+      res.status(500).json({ error: "Failed to update profile image" });
+      return;
+    }
+
+    res.json({ user: toUserResponse(result.user) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch("/notification-settings", async (req, res, next) => {
+  try {
+    const authReq = req as unknown as AuthenticatedRequest;
+    const { notificationEnabled } = z.object({ notificationEnabled: z.boolean() }).parse(req.body);
+    const result = await updateUser(authReq.auth.userId, { notificationEnabled });
+
+    if (result.status === "not-found") {
+      res.status(404).json({ error: "User not found" });
       return;
     }
 
     if (result.status !== "updated") {
-      res.status(500).json({ error: "Failed to update user" });
+      res.status(500).json({ error: "Failed to update notification settings" });
       return;
     }
 

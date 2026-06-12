@@ -565,21 +565,32 @@ export const openApiSpec = {
           "401": { $ref: "#/components/responses/Unauthorized" },
         },
       },
+      delete: {
+        tags: ["Me"],
+        summary: "회원탈퇴",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "204": { description: "탈퇴 완료" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+        },
+      },
+    },
+    "/api/me/profile-image": {
       patch: {
         tags: ["Me"],
-        summary: "내 프로필 수정",
+        summary: "프로필 이미지 변경",
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
             "application/json": {
-              schema: { $ref: "#/components/schemas/UserUpdateInput" },
+              schema: { $ref: "#/components/schemas/ProfileImageUpdateInput" },
             },
           },
         },
         responses: {
           "200": {
-            description: "수정된 프로필",
+            description: "변경된 프로필",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/UserResponse" },
@@ -588,16 +599,35 @@ export const openApiSpec = {
           },
           "400": { $ref: "#/components/responses/InvalidRequest" },
           "401": { $ref: "#/components/responses/Unauthorized" },
-          "409": { $ref: "#/components/responses/Conflict" },
+          "404": { $ref: "#/components/responses/NotFound" },
         },
       },
-      delete: {
+    },
+    "/api/me/notification-settings": {
+      patch: {
         tags: ["Me"],
-        summary: "회원탈퇴",
+        summary: "마이페이지 알림 설정 변경",
         security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/NotificationSettingsUpdateInput" },
+            },
+          },
+        },
         responses: {
-          "204": { description: "탈퇴 완료" },
+          "200": {
+            description: "변경된 프로필",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/UserResponse" },
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/InvalidRequest" },
           "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
         },
       },
     },
@@ -763,7 +793,7 @@ export const openApiSpec = {
           relation: { type: "string", example: "친구" },
           date: { type: "string", format: "date", example: "2026-06-20" },
           memo: { type: "string", example: "케이크 준비" },
-          repeat: { type: "boolean", default: true },
+          repeat: { type: "boolean", default: false },
           notificationEnabled: { type: "boolean", default: true },
           notificationDays: {
             type: "array",
@@ -784,6 +814,7 @@ export const openApiSpec = {
             properties: {
               id: { type: "string", format: "uuid" },
               userId: { type: "string", format: "uuid" },
+              originalDate: { type: "string", format: "date" },
               nextDate: { type: "string", format: "date" },
               dDay: { type: "integer", example: 10 },
               createdAt: { type: "string", format: "date-time" },
@@ -973,11 +1004,17 @@ export const openApiSpec = {
         required: ["user"],
         properties: { user: { $ref: "#/components/schemas/User" } },
       },
-      UserUpdateInput: {
+      ProfileImageUpdateInput: {
         type: "object",
+        required: ["profileImageUrl"],
         properties: {
-          nickname: { type: "string", minLength: 2, maxLength: 20 },
           profileImageUrl: { type: "string", format: "uri", nullable: true },
+        },
+      },
+      NotificationSettingsUpdateInput: {
+        type: "object",
+        required: ["notificationEnabled"],
+        properties: {
           notificationEnabled: { type: "boolean" },
         },
       },

@@ -21,7 +21,7 @@ const anniversarySchema = z.object({
   relation: z.string().trim().min(1).max(30),
   date: dateSchema,
   memo: z.string().trim().max(500).default(""),
-  repeat: z.boolean().default(true),
+  repeat: z.boolean().default(false),
   notificationEnabled: z.boolean().default(true),
   notificationDays: z.array(z.number().int().min(0).max(365)).default([7, 3, 0]),
 });
@@ -45,6 +45,12 @@ function toYmd(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function toMonthDay(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${month}-${day}`;
+}
+
 function daysBetween(from: Date, to: Date) {
   const msPerDay = 24 * 60 * 60 * 1000;
   return Math.ceil((to.getTime() - from.getTime()) / msPerDay);
@@ -66,13 +72,28 @@ function nextOccurrence(anniversary: Anniversary, today = startOfToday()) {
   return candidate;
 }
 
-function withDday(anniversary: Anniversary) {
+function withDday(anniversary: Anniversary, options: { compactRepeatDate?: boolean } = {}) {
+  const original = dateFromYmd(anniversary.date);
   const nextDate = nextOccurrence(anniversary);
 
   return {
     ...anniversary,
+    originalDate: anniversary.date,
+    date: options.compactRepeatDate && anniversary.repeat ? toMonthDay(original) : anniversary.date,
     nextDate: toYmd(nextDate),
     dDay: daysBetween(startOfToday(), nextDate),
+  };
+}
+
+function withOccurrenceDday(anniversary: Anniversary, occurrence: Date) {
+  const occurrenceDate = toYmd(occurrence);
+
+  return {
+    ...anniversary,
+    originalDate: anniversary.date,
+    date: occurrenceDate,
+    nextDate: occurrenceDate,
+    dDay: daysBetween(startOfToday(), occurrence),
   };
 }
 
@@ -94,7 +115,9 @@ router.get("/", async (req, res, next) => {
   try {
     const authReq = req as unknown as AuthenticatedRequest;
     const sort = z.enum(["date", "dday"]).default("dday").parse(req.query.sort ?? "dday");
-    const anniversaries = (await listAnniversaries(authReq.auth.userId)).map(withDday);
+    const anniversaries = (await listAnniversaries(authReq.auth.userId)).map((anniversary) =>
+      withDday(anniversary, { compactRepeatDate: true })
+    );
 
     res.json({ anniversaries: sortAnniversaries(anniversaries, sort) });
   } catch (error) {
@@ -105,7 +128,7 @@ router.get("/", async (req, res, next) => {
 router.get("/nearest", async (req, res, next) => {
   try {
     const authReq = req as unknown as AuthenticatedRequest;
-    const anniversaries = upcomingOnly((await listAnniversaries(authReq.auth.userId)).map(withDday));
+    const anniversaries = upcomingOnly((await listAnniversaries(authReq.auth.userId)).map((anniversary) => withDday(anniversary)));
     const [anniversary = null] = sortAnniversaries(anniversaries, "dday");
 
     res.json({ anniversary });
@@ -118,7 +141,7 @@ router.get("/upcoming", async (req, res, next) => {
   try {
     const authReq = req as unknown as AuthenticatedRequest;
     const limit = z.coerce.number().int().min(1).max(50).default(5).parse(req.query.limit ?? 5);
-    const anniversaries = (await listAnniversaries(authReq.auth.userId)).map(withDday);
+    const anniversaries = (await listAnniversaries(authReq.auth.userId)).map((anniversary) => withDday(anniversary));
 
     res.json({ anniversaries: sortAnniversaries(anniversaries, "dday").slice(0, limit) });
   } catch (error) {
@@ -131,12 +154,16 @@ router.get("/calendar", async (req, res, next) => {
     const authReq = req as unknown as AuthenticatedRequest;
     const year = z.coerce.number().int().min(1900).max(3000).parse(req.query.year);
     const month = z.coerce.number().int().min(1).max(12).parse(req.query.month);
-    const anniversaries = (await listAnniversaries(authReq.auth.userId)).map(withDday);
-    const calendar = anniversaries.filter((anniversary) => {
+    const anniversaries = await listAnniversaries(authReq.auth.userId);
+    const calendar = anniversaries.flatMap((anniversary) => {
       const original = dateFromYmd(anniversary.date);
       const occurrence = anniversary.repeat ? new Date(year, original.getMonth(), original.getDate()) : original;
 
-      return occurrence.getFullYear() === year && occurrence.getMonth() + 1 === month;
+      if (occurrence.getFullYear() !== year || occurrence.getMonth() + 1 !== month) {
+        return [];
+      }
+
+      return [withOccurrenceDday(anniversary, occurrence)];
     });
 
     res.json({ year, month, anniversaries: sortAnniversaries(calendar, "date") });

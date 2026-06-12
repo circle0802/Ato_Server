@@ -99,7 +99,6 @@ export async function createUser(input: { nickname: string; passwordHash: string
 export async function updateUser(
   userId: string,
   input: {
-    nickname?: string;
     profileImageUrl?: string | null;
     notificationEnabled?: boolean;
   }
@@ -110,21 +109,6 @@ export async function updateUser(
 
     if (!user) {
       return { status: "not-found" as const };
-    }
-
-    if (input.nickname !== undefined) {
-      const nickname = input.nickname.trim();
-      const normalizedNickname = normalizeNickname(nickname);
-      const duplicate = usersFile.users.some(
-        (candidate) => candidate.id !== userId && candidate.normalizedNickname === normalizedNickname
-      );
-
-      if (duplicate) {
-        return { status: "duplicate-nickname" as const };
-      }
-
-      user.nickname = nickname;
-      user.normalizedNickname = normalizedNickname;
     }
 
     if (input.profileImageUrl !== undefined) {
